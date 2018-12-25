@@ -14,28 +14,28 @@ from pybotvac import Robot
 ################################################################################
 # globals
 k_robot_state = {
-    0:    'invalid',
-    1:    'idle',
-    2:    'busy',
-    3:    'paused',
-    4:    'error'
+    0:  'invalid',
+    1:  'idle',
+    2:  'busy',
+    3:  'paused',
+    4:  'error'
     }
 k_robot_action = {
     0:  'none',
-    1:    'house_cleaning',
-    2:    'spot_cleaning',
-    3:    'manual_cleaning',
-    4:    'docking',
-    5:    'user_menu_active',
-    6:    'suspended_cleaning',
-    7:    'updating',
-    8:    'copying_logs',
-    9:    'recovering_location',
-    10:    'iec_test',
-    11:    'map_cleaning',
-    12:    'exploring_map',
-    13:    'acquiring_persistent_maps',
-    14:    'creating_uploading_map',
+    1:  'house_cleaning',
+    2:  'spot_cleaning',
+    3:  'manual_cleaning',
+    4:  'docking',
+    5:  'user_menu_active',
+    6:  'suspended_cleaning',
+    7:  'updating',
+    8:  'copying_logs',
+    9:  'recovering_location',
+    10: 'iec_test',
+    11: 'map_cleaning',
+    12: 'exploring_map',
+    13: 'acquiring_persistent_maps',
+    14: 'creating_uploading_map',
     15: 'suspended_exploration'
     }
 k_robot_cleaning_category = {
@@ -460,7 +460,7 @@ class Botvac(threading.Thread):
     def resume_cleaning(self):
         if self.available_commands['resume']:
             self.logger.info(u'"{}" resume cleaning'.format(self.name))
-            self.robot.pause_cleaning()
+            self.robot.resume_cleaning()
             self.requestStatus()
         else:
             self.logger.error(u'"{}" resume cleaning command not currently available'.format(self.name))
