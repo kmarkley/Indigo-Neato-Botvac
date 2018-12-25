@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<MenuItems>
+	<MenuItem id="updateAccount">
+		<Name>Update Neato Account</Name>
+		<CallbackMethod>updateAccount</CallbackMethod>
+	</MenuItem>
+	<MenuItem id="debugSeperator" type="separator" />
+    <MenuItem id='toggleDebug'>
+        <Name>Toggle Debugging</Name>
+		<CallbackMethod>toggleDebug</CallbackMethod>
+	</MenuItem>
+</MenuItems>

@@ -1,0 +1,13 @@
+<?xml version='1.0'?>
+<PluginConfig>
+	<Field id='email' type='textfield'>
+		<Label>Email:</Label>
+	</Field>
+	<Field id='password' type='textfield'>
+		<Label>Password:</Label>
+	</Field>
+	<Field id='debugSeparator' type='separator' />
+	<Field id='showDebugInfo' type='checkbox' defaultValue='false'>
+		<Label>Enable debuging:</Label>
+	</Field>
+</PluginConfig>

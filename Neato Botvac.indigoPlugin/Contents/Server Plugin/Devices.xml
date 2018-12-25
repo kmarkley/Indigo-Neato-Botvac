@@ -1,0 +1,187 @@
+<?xml version='1.0'?>
+<Devices>
+	<Device type='custom' id='NeatoBotvac'>
+		<Name>Neato Botvac</Name>
+		<ConfigUI>
+			<Field id='serial' type='menu'>
+				<Label>Robot:</Label>
+				<List class='self' method='getRobotList'/>
+			</Field>
+			<Field id='serialHelp' type='label' alignWithControl='true' fontSize='small' fontColor='darkgray'>
+				<Label>If your robot does not appear on this list, select 'Update Neato Account' from plugin menu and try again.</Label>
+			</Field>
+			<Field id='separator' type='separator' />
+			<Field id='statusFrequency' type='menu' defaultValue='120'>
+				<Label>Frequency:</Label>
+				<List>
+					<Option value='30'>30 Seconds (testing)</Option>
+					<Option value='60'>1 Minute (anxious)</Option>
+					<Option value='120'>2 Minutes (normal)</Option>
+					<Option value='300'>5 Minutes (laid back)</Option>
+				</List>
+			</Field>
+			<Field id='frequencyHelp' type='label' alignWithControl='true' fontSize='small' fontColor='darkgray'>
+				<Label>Device status is only updated by pulling data from the cloud.  Choose the slowest option you can stand.</Label>
+			</Field>
+			<Field id='SupportsBatteryLevel'  type='checkbox' defaultValue='true' hidden='true' />
+			<Field id='SupportsStatusRequest' type='checkbox' defaultValue='true' hidden='true'/>
+		</ConfigUI>
+		<UiDisplayStateId>state</UiDisplayStateId>
+		<States>
+			<State id='state'>
+				<ValueType>
+					<List>
+						<Option value='invalid'>Invalid</Option>
+					    <Option value='idle'>Idle</Option>
+					    <Option value='busy'>Busy</Option>
+					    <Option value='paused'>Paused</Option>
+					    <Option value='error'>Error</Option>
+					</List>
+				</ValueType>
+				<TriggerLabel>State Is</TriggerLabel>
+				<ControlPageLabel>State</ControlPageLabel>
+			</State>
+			<State id='action'>
+				<ValueType>
+					<List>
+						<Option value='none'>(none)</Option>
+						<Option value='house_cleaning'>House Cleaning</Option>
+						<Option value='spot_cleaning'>Spot Cleaning</Option>
+						<Option value='manual_cleaning'>Manual Cleaning</Option>
+						<Option value='docking'>Docking</Option>
+						<Option value='user_menu_active'>User Menu Active</Option>
+						<Option value='suspended_cleaning'>Suspended Cleaning</Option>
+						<Option value='updating'>Updating</Option>
+						<Option value='copying_logs'>Copying Logs</Option>
+						<Option value='recovering_location'>Recovering Location</Option>
+						<Option value='iec_test'>IEC Test</Option>
+						<Option value='map_cleaning'>Map Cleaning</Option>
+						<Option value='exploring_map'>Exploring Map</Option>
+						<Option value='acquiring_persistent_maps'>Acquiring Persistent Maps</Option>
+						<Option value='creating_uploading_map'>Creating and Uploading Map</Option>
+						<Option value='suspended_exploration'>Suspended Exploration</Option>
+					</List>
+				</ValueType>
+				<TriggerLabel>Action Is</TriggerLabel>
+				<ControlPageLabel>Action</ControlPageLabel>
+			</State>
+			<State id='error'>
+				<ValueType>String</ValueType>
+				<TriggerLabel>Error Is</TriggerLabel>
+				<ControlPageLabel>Error</ControlPageLabel>
+			</State>
+			<State id='category'>
+				<ValueType>
+					<List>
+						<Option value='manual'>Manual</Option>
+					    <Option value='house'>House</Option>
+					    <Option value='spot'>Spot</Option>
+					</List>
+				</ValueType>
+				<TriggerLabel>Cleaning Category Is</TriggerLabel>
+				<ControlPageLabel>Cleaning Category</ControlPageLabel>
+			</State>
+			<State id='mode'>
+				<ValueType>
+					<List>
+						<Option value='eco'>Eco</Option>
+					    <Option value='turbo'>Turbo</Option>
+					</List>
+				</ValueType>
+				<TriggerLabel>Cleaning Mode Is</TriggerLabel>
+				<ControlPageLabel>Cleaning Mode</ControlPageLabel>
+			</State>
+			<State id='modifier'>
+				<ValueType>
+					<List>
+						<Option value='normal'>Normal</Option>
+					    <Option value='double'>Double</Option>
+					</List>
+				</ValueType>
+				<TriggerLabel>Cleaning Modifier Is</TriggerLabel>
+				<ControlPageLabel>Cleaning Modifier</ControlPageLabel>
+			</State>
+			<State id='navigation'>
+				<ValueType>
+					<List>
+						<Option value='normal'>Normal</Option>
+					    <Option value='extra_care'>Extra Care</Option>
+					    <Option value='deep'>Deep</Option>
+					</List>
+				</ValueType>
+				<TriggerLabel>Cleaning Navigation Is</TriggerLabel>
+				<ControlPageLabel>Cleaning Navigation</ControlPageLabel>
+			</State>
+			<State id='spot_height'>
+				<ValueType>Number</ValueType>
+				<TriggerLabel>Cleaning Spot Height Is</TriggerLabel>
+				<ControlPageLabel>Cleaning Spot Height</ControlPageLabel>
+			</State>
+			<State id='spot_width'>
+				<ValueType>Number</ValueType>
+				<TriggerLabel>Cleaning Spot Width Is</TriggerLabel>
+				<ControlPageLabel>Cleaning Spot Width</ControlPageLabel>
+			</State>
+			<State id='model'>
+				<ValueType>String</ValueType>
+				<TriggerLabel>Model Is</TriggerLabel>
+				<ControlPageLabel>Model</ControlPageLabel>
+			</State>
+			<State id='firmware'>
+				<ValueType>String</ValueType>
+				<TriggerLabel>Firmware Is</TriggerLabel>
+				<ControlPageLabel>Firmware</ControlPageLabel>
+			</State>
+			<State id='batteryLevel'>
+				<ValueType>Number</ValueType>
+				<TriggerLabel>Battery level Is</TriggerLabel>
+				<ControlPageLabel>Battery Level</ControlPageLabel>
+			</State>
+			<State id='charging'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Charging State Is</TriggerLabel>
+				<ControlPageLabel>Charging</ControlPageLabel>
+			</State>
+			<State id='docked'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Docked State Is</TriggerLabel>
+				<ControlPageLabel>Docked</ControlPageLabel>
+			</State>
+			<State id='schedule_enabled'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Schedule Is Enabled</TriggerLabel>
+				<ControlPageLabel>Schedule Enabled</ControlPageLabel>
+			</State>
+			<!-- <State id='dock_seen'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Dock Seen State Is</TriggerLabel>
+				<ControlPageLabel>Dock Seen</ControlPageLabel>
+			</State> -->
+			<!-- <State id='command_available_pause'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Pause Command Is Available</TriggerLabel>
+				<ControlPageLabel>Pause Command Available</ControlPageLabel>
+			</State>
+			<State id='command_available_resume'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Resume Command Is Available</TriggerLabel>
+				<ControlPageLabel>Resume Command Available</ControlPageLabel>
+			</State>
+			<State id='command_available_return'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Return to Base Command Is Available</TriggerLabel>
+				<ControlPageLabel>Return to Base Command Available</ControlPageLabel>
+			</State>
+			<State id='command_available_start'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Start Command Is Available</TriggerLabel>
+				<ControlPageLabel>Start Command Available</ControlPageLabel>
+			</State>
+			<State id='command_available_stop'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Stop Command Is Available</TriggerLabel>
+				<ControlPageLabel>Stop Command Available</ControlPageLabel>
+			</State> -->
+		</States>
+	</Device>
+</Devices>

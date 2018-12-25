@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<Actions>
+	<Action id="start_cleaning" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Start House Cleaning</Name>
+		<ConfigUI>
+			<Field id='mode' type='menu' defaultValue='2'>
+				<Label>Mode:</Label>
+				<List>
+					<Option value='1'>Eco</Option>
+					<Option value='2'>Turbo</Option>
+				</List>
+			</Field>
+			<Field id='navigation' type='menu' defaultValue='1'>
+				<Label>Navigation:</Label>
+				<List>
+					<Option value='1'>Normal</Option>
+					<Option value='2'>Extra Care</Option>
+					<Option value='3'>Deep</Option>
+				</List>
+			</Field>
+			<Field id='map' type='menu' defaultValue='4'>
+				<Label>Map:</Label>
+				<List>
+					<Option value='2'>Non-persistent Map</Option>
+					<Option value='4'>Persistent Map</Option>
+				</List>
+			</Field>
+			<Field id='spacer' type='label'>
+				<Label>    </Label>
+			</Field>
+			<Field id='warning' type='label' fontColor='red' alignWithControl='true'>
+				<Label>* Not all options work with all models. Your milage may vary. *</Label>
+			</Field>
+		</ConfigUI>
+		<CallbackMethod>start_cleaning</CallbackMethod>
+	</Action>
+	<Action id="start_spot_cleaning" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Start Spot Cleaning</Name>
+		<ConfigUI>
+			<Field id='width' type='textfield' defaultValue='400'>
+				<Label>Width:</Label>
+			</Field>
+			<Field id='height' type='textfield' defaultValue='400'>
+				<Label>Height:</Label>
+			</Field>
+		</ConfigUI>
+		<CallbackMethod>start_spot_cleaning</CallbackMethod>
+	</Action>
+	<Action id="pause_cleaning" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Pause Cleaning</Name>
+		<CallbackMethod>pause_cleaning</CallbackMethod>
+	</Action>
+	<Action id="resume_cleaning" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Resume Cleaning</Name>
+		<CallbackMethod>resume_cleaning</CallbackMethod>
+	</Action>
+	<Action id="stop_cleaning" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Stop Cleaning</Name>
+		<CallbackMethod>stop_cleaning</CallbackMethod>
+	</Action>
+	<Action id="send_to_base" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Send to Base</Name>
+		<CallbackMethod>send_to_base</CallbackMethod>
+	</Action>
+	<Action id="locate" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Locate</Name>
+		<CallbackMethod>locate</CallbackMethod>
+	</Action>
+	<Action id="enable_schedule" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Enable Schedule</Name>
+		<CallbackMethod>enable_schedule</CallbackMethod>
+	</Action>
+	<Action id="disable_schedule" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Disable Schedule</Name>
+		<CallbackMethod>disable_schedule</CallbackMethod>
+	</Action>
+	<Action id="get_schedule" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Get Schedule</Name>
+		<CallbackMethod>get_schedule</CallbackMethod>
+	</Action>
+	<Action id="get_general_info" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Get General Info</Name>
+		<CallbackMethod>get_general_info</CallbackMethod>
+	</Action>
+	<Action id="get_local_stats" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Get Local Stats</Name>
+		<CallbackMethod>get_local_stats</CallbackMethod>
+	</Action>
+	<Action id="get_preferences" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Get Preferences</Name>
+		<CallbackMethod>get_preferences</CallbackMethod>
+	</Action>
+	<Action id="get_map_boundaries" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Get Map Boundaries</Name>
+		<CallbackMethod>get_map_boundaries</CallbackMethod>
+	</Action>
+	<Action id="get_robot_info" deviceFilter="self" uiPath="DeviceActions">
+		<Name>Get Robot Info</Name>
+		<CallbackMethod>get_robot_info</CallbackMethod>
+	</Action>
+</Actions>
