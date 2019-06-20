@@ -11,13 +11,13 @@
 				<Label>If your robot does not appear on this list, select 'Update Neato Account' from plugin menu and try again.</Label>
 			</Field>
 			<Field id='separator' type='separator' />
-			<Field id='statusFrequency' type='menu' defaultValue='120'>
+			<Field id='statusFrequency' type='menu' defaultValue='300'>
 				<Label>Frequency:</Label>
 				<List>
-					<Option value='30'>30 Seconds (testing)</Option>
-					<Option value='60'>1 Minute (anxious)</Option>
-					<Option value='120'>2 Minutes (normal)</Option>
-					<Option value='300'>5 Minutes (laid back)</Option>
+					<Option value='60'>1 Minute (testing)</Option>
+					<Option value='120'>2 Minutes (anxious)</Option>
+					<Option value='300'>5 Minutes (normal)</Option>
+					<Option value='600'>10 Minutes (laid back)</Option>
 				</List>
 			</Field>
 			<Field id='frequencyHelp' type='label' alignWithControl='true' fontSize='small' fontColor='darkgray'>
@@ -26,8 +26,13 @@
 			<Field id='SupportsBatteryLevel'  type='checkbox' defaultValue='true' hidden='true' />
 			<Field id='SupportsStatusRequest' type='checkbox' defaultValue='true' hidden='true'/>
 		</ConfigUI>
-		<UiDisplayStateId>state</UiDisplayStateId>
+		<UiDisplayStateId>display</UiDisplayStateId>
 		<States>
+			<State id='display'>
+				<ValueType>String</ValueType>
+				<TriggerLabel>Firmware Is</TriggerLabel>
+				<ControlPageLabel>Firmware</ControlPageLabel>
+			</State>
 			<State id='state'>
 				<ValueType>
 					<List>
@@ -73,6 +78,7 @@
 			<State id='category'>
 				<ValueType>
 					<List>
+						<Option value='none'>(none)</Option>
 						<Option value='manual'>Manual</Option>
 					    <Option value='house'>House</Option>
 					    <Option value='spot'>Spot</Option>
@@ -152,11 +158,11 @@
 				<TriggerLabel>Schedule Is Enabled</TriggerLabel>
 				<ControlPageLabel>Schedule Enabled</ControlPageLabel>
 			</State>
-			<!-- <State id='dock_seen'>
+			<State id='dock_seen'>
 				<ValueType>Boolean</ValueType>
 				<TriggerLabel>Dock Seen State Is</TriggerLabel>
 				<ControlPageLabel>Dock Seen</ControlPageLabel>
-			</State> -->
+			</State>
 			<!-- <State id='command_available_pause'>
 				<ValueType>Boolean</ValueType>
 				<TriggerLabel>Pause Command Is Available</TriggerLabel>
@@ -182,6 +188,11 @@
 				<TriggerLabel>Stop Command Is Available</TriggerLabel>
 				<ControlPageLabel>Stop Command Available</ControlPageLabel>
 			</State> -->
+			<State id='connected'>
+				<ValueType>Boolean</ValueType>
+				<TriggerLabel>Connected State Is</TriggerLabel>
+				<ControlPageLabel>Connected</ControlPageLabel>
+			</State>
 		</States>
 	</Device>
 </Devices>

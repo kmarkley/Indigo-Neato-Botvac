@@ -7,9 +7,12 @@ import indigo
 import threading
 import Queue
 import time
+import json
 
 from pybotvac import Account
 from pybotvac import Robot
+
+from requests import RequestException
 
 ################################################################################
 # globals
@@ -39,6 +42,7 @@ k_robot_action = {
     15: 'suspended_exploration'
     }
 k_robot_cleaning_category = {
+    0:  'none',
     1:  'manual',
     2:  'house',
     3:  'spot'
@@ -65,20 +69,17 @@ class Plugin(indigo.PluginBase):
         super(Plugin, self).__init__(pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
 
         self.account = None
+        self.instance_dict = dict()
 
     #-------------------------------------------------------------------------------
     # start, stop and plugin config
     #-------------------------------------------------------------------------------
     def startup(self):
-        self.updateAccount()
-
         self.debug = self.pluginPrefs.get('showDebugInfo',False)
         if self.debug:
             self.logger.debug(u'Debug logging enabled')
 
-        self.instance_dict = dict()
-
-        # indigo.devices.subscribeToChanges()
+        self.updateAccount()
 
     #-------------------------------------------------------------------------------
     def shutdown(self):
@@ -117,16 +118,6 @@ class Plugin(indigo.PluginBase):
             pass
 
     #-------------------------------------------------------------------------------
-    # subscribed changes
-    #-------------------------------------------------------------------------------
-    # def deviceUpdated(self, old_dev, new_dev):
-    #     if new_dev.pluginId == self.pluginId:
-    #         # device belongs to plugin
-    #         indigo.PluginBase.deviceUpdated(self, old_dev, new_dev)
-    #         if new_dev.configured:
-    #             self.instance_dict[new_dev.id].task(instance.selfUpdated, new_dev)
-
-    #-------------------------------------------------------------------------------
     # menu methods
     #-------------------------------------------------------------------------------
     def updateAccount(self):
@@ -136,8 +127,9 @@ class Plugin(indigo.PluginBase):
         if email and password:
             try:
                 self.account = Account(email, password)
+                robots = self.account.robots
                 self.logger.info(u'Neato account updated')
-                if len(self.account.robots) > 0:
+                if len(robots) > 0:
                     self.logger.info(u'Robots found:')
                     for robot in self.account.robots:
                         self.logger.info(u'     {} ({})'.format(robot.name, robot.serial))
@@ -145,7 +137,6 @@ class Plugin(indigo.PluginBase):
                     self.logger.error(u'No robots found')
             except:
                 self.logger.error(u'Error accessing Neato account - check plugin config')
-
         else:
             # plugin is not configured
             self.logger.error(u'No account credentials - check plugin config')
@@ -202,7 +193,13 @@ class Plugin(indigo.PluginBase):
     # device config callbacks
     #-------------------------------------------------------------------------------
     def getRobotList(self, filter=None, valuesDict=None, typeId='', targetId=0):
-        return [(robot.serial,robot.name) for robot in self.account.robots]
+        try:
+            return [(robot.serial,robot.name) for robot in self.account.robots]
+        except:
+            if targetId != 0:
+                return[(self.instance_dict(targetId).props['name'],self.instance_dict(targetId).props['serial'])]
+            else:
+                return[(u'**Account Offline**',0)]
 
     #-------------------------------------------------------------------------------
     # action methods
@@ -329,13 +326,18 @@ class Botvac(threading.Thread):
 
         self.device = device
         self.props  = device.pluginProps
-        self.robot  = Robot(self.props['serial'],self.props['secret'],self.props['traits'],self.props['name'])
 
-        self.frequency = int(self.props.get('statusFrequency','120'))
+        self.frequency = int(self.props.get('statusFrequency','300'))
 
         self.states = dict()
         self.available_commands = dict()
         self.next_update = 0
+
+        try:
+            self.robot = Robot(self.props['serial'],self.props['secret'],self.props['traits'],self.props['name'])
+        except:
+            self.logger.error(u'"{}" initialization error'.format(self.name))
+            raise RuntimeError('Unable to initialize robot')
 
         self.task(self.requestStatus)
         self.start()
@@ -349,14 +351,14 @@ class Botvac(threading.Thread):
                 try:
                     func(*args)
                 except NotImplementedError:
-                    self.logger.error('"{}" task "{}" not implemented'.format(self.name,func.__name__))
+                    self.logger.error(u'"{}" task "{}" not implemented'.format(self.name,func.__name__))
                 self.queue.task_done()
             except Queue.Empty:
                 pass
             except Exception as e:
-                self.logger.exception('"{}" thread error \n{}'.format(self.name, e))
+                self.logger.exception(u'"{}" thread error \n{}'.format(self.name, e))
         else:
-            self.logger.debug('"{}" thread cancelled'.format(self.name))
+            self.logger.debug(u'"{}" thread cancelled'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def task(self, func, *args):
@@ -368,12 +370,6 @@ class Botvac(threading.Thread):
         self.cancelled = True
 
     #-------------------------------------------------------------------------------
-    # def selfUpdated(self, new_dev):
-    #     self.device = new_dev
-    #     self.states = new_dev.states
-    #     self.props  = new_dev.pluginProps
-
-    #-------------------------------------------------------------------------------
     def tick(self):
         if time.time() >= self.next_update:
             self.requestStatus()
@@ -381,44 +377,57 @@ class Botvac(threading.Thread):
     #-------------------------------------------------------------------------------
     def requestStatus(self):
         self.logger.info(u'"{}" request status'.format(self.name))
-        robot_status = self.robot.state
+        self.next_update = time.time() + self.frequency
+        robot_status = u''
+        try:
+            robot_status = self.robot.state
 
-        self.states['state']            = k_robot_state[robot_status['state']]
-        self.states['action']           = k_robot_action[robot_status['action']]
-        self.states['error']            = robot_status['error']
-        self.states['category']         = k_robot_cleaning_category[robot_status['cleaning']['category']]
-        self.states['mode']             = k_robot_cleaning_mode[robot_status['cleaning']['mode']]
-        self.states['modifier']         = k_robot_cleaning_modifier[robot_status['cleaning']['modifier']]
-        self.states['navigation']       = k_robot_cleaning_navigation[robot_status['cleaning']['navigationMode']]
-        self.states['spot_height']      = robot_status['cleaning']['spotHeight']
-        self.states['spot_width']       = robot_status['cleaning']['spotWidth']
-        self.states['firmware']         = robot_status['meta']['firmware']
-        self.states['model']            = robot_status['meta']['modelName']
-        self.states['batteryLevel']     = robot_status['details']['charge']
-        self.states['charging']         = robot_status['details']['isCharging']
-        self.states['docked']           = robot_status['details']['isDocked']
-        self.states['schedule_enabled'] = robot_status['details']['isScheduleEnabled']
+            self.states['state']            = k_robot_state[robot_status['state']]
+            self.states['action']           = k_robot_action[robot_status['action']]
+            self.states['error']            = robot_status['error']
+            self.states['category']         = k_robot_cleaning_category[robot_status['cleaning']['category']]
+            self.states['mode']             = k_robot_cleaning_mode[robot_status['cleaning']['mode']]
+            self.states['modifier']         = k_robot_cleaning_modifier[robot_status['cleaning']['modifier']]
+            self.states['navigation']       = k_robot_cleaning_navigation[robot_status['cleaning']['navigationMode']]
+            self.states['spot_height']      = robot_status['cleaning']['spotHeight']
+            self.states['spot_width']       = robot_status['cleaning']['spotWidth']
+            self.states['firmware']         = robot_status['meta']['firmware']
+            self.states['model']            = robot_status['meta']['modelName']
+            self.states['batteryLevel']     = robot_status['details']['charge']
+            self.states['charging']         = robot_status['details']['isCharging']
+            self.states['docked']           = robot_status['details']['isDocked']
+            self.states['dock_seen']        = robot_status['details']['dockHasBeenSeen']
+            self.states['schedule_enabled'] = robot_status['details']['isScheduleEnabled']
+            self.available_commands         = robot_status['availableCommands']
 
-        self.available_commands         = robot_status['availableCommands']
+            self.states['connected']        = True
 
-        # self.states['command_available_pause']  = robot_status['availableCommands']['pause']
-        # self.states['command_available_resume'] = robot_status['availableCommands']['resume']
-        # self.states['command_available_return'] = robot_status['availableCommands']['goToBase']
-        # self.states['command_available_start']  = robot_status['availableCommands']['start']
-        # self.states['command_available_stop']   = robot_status['availableCommands']['stop']
-        # self.states['dock_seen']                = robot_status['details']['dockHasBeenSeen']
+        except RequestException:
+            self.logger.info(u'"{}" offline'.format(self.name))
+            self.states['connected'] = False
+        except KeyError:
+            self.logger.error(u'"{}" received malformed status message'.format(self.name))
+            self.logger.debug(u'{}'.format(json.dumps(robot_status, sort_keys=True, indent=4)))
+
+        if self.states['connected'] == False:
+            self.states['display'] = 'offline'
+        elif self.states['state'] == 'busy':
+            self.states['display'] = self.states['action']
+        else:
+            self.states['display'] = self.states['state']
+        self.states['display'] = self.states['display'].replace('_',' ')
+
+        if self.states['state'] in ['invalid','error'] or self.states['connected'] == False:
+            stateImg = indigo.kStateImageSel.SensorTripped
+        elif self.states['state'] == 'busy':
+            stateImg = indigo.kStateImageSel.SensorOn
+        else: # idle, paused
+            stateImg = indigo.kStateImageSel.SensorOff
 
         self.device.updateStatesOnServer([{'key':key,'value':self.states[key]} for key in self.states])
-
-        if robot_status['state'] == 2:
-            stateImg = indigo.kStateImageSel.SensorOn
-        elif robot_status['state'] in [0,4]:
-            stateImg = indigo.kStateImageSel.SensorTripped
-        else:
-            stateImg = indigo.kStateImageSel.SensorOff
         self.device.updateStateImageOnServer(stateImg)
 
-        self.next_update = time.time() + self.frequency
+        self.logger.debug(u'"{}" status update complete'.format(self.name))
 
     #-------------------------------------------------------------------------------
     # properties
@@ -431,7 +440,7 @@ class Botvac(threading.Thread):
     # action methods
     #-------------------------------------------------------------------------------
     def start_cleaning(self, props):
-        if self.available_commands['start']:
+        if self.available_commands['start'] and self.states['connected']:
             self.logger.info(u'"{}" start house cleaning'.format(self.name))
             self.robot.start_cleaning(mode=int(props['mode']), navigation_mode=int(props['navigation']), category=int(props['map']))
             self.requestStatus()
@@ -440,7 +449,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def start_spot_cleaning(self, props):
-        if self.available_commands['start']:
+        if self.available_commands['start'] and self.states['connected']:
             self.logger.info(u'"{}" start spot cleaning'.format(self.name))
             self.robot.start_spot_cleaning(spot_width=int(props['width']), spot_height=int(props['height']))
             self.requestStatus()
@@ -449,7 +458,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def pause_cleaning(self):
-        if self.available_commands['pause']:
+        if self.available_commands['pause'] and self.states['connected']:
             self.logger.info(u'"{}" pause cleaning'.format(self.name))
             self.robot.pause_cleaning()
             self.requestStatus()
@@ -458,7 +467,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def resume_cleaning(self):
-        if self.available_commands['resume']:
+        if self.available_commands['resume'] and self.states['connected']:
             self.logger.info(u'"{}" resume cleaning'.format(self.name))
             self.robot.resume_cleaning()
             self.requestStatus()
@@ -467,7 +476,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def stop_cleaning(self):
-        if self.available_commands['stop']:
+        if self.available_commands['stop'] and self.states['connected']:
             self.logger.info(u'"{}" resume cleaning'.format(self.name))
             self.robot.stop_cleaning()
             self.requestStatus()
@@ -476,7 +485,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def send_to_base(self):
-        if self.available_commands['goToBase']:
+        if self.available_commands['goToBase'] and self.states['connected']:
             self.logger.info(u'"{}" go to base'.format(self.name))
             self.robot.send_to_base()
             self.requestStatus()
@@ -485,51 +494,84 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def locate(self):
-        self.logger.info(u'"{}" locate'.format(self.name))
-        self.robot.locate()
-        self.requestStatus()
+        if self.states['connected']:
+            self.logger.info(u'"{}" locate'.format(self.name))
+            self.robot.locate()
+            self.requestStatus()
+        else:
+            self.logger.error(u'"{}" locate command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def enable_schedule(self):
-        self.logger.info(u'"{}" enable schedule'.format(self.name))
-        self.robot.enable_schedule()
-        self.requestStatus()
+        if self.states['connected']:
+            self.logger.info(u'"{}" enable schedule'.format(self.name))
+            self.robot.enable_schedule()
+            self.requestStatus()
+        else:
+            self.logger.error(u'"{}" enable schedule command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def disable_schedule(self):
-        self.logger.info(u'"{}" disable schedule'.format(self.name))
-        self.robot.disable_schedule()
-        self.requestStatus()
+        if self.states['connected']:
+            self.logger.info(u'"{}" disable schedule'.format(self.name))
+            self.robot.disable_schedule()
+            self.requestStatus()
+        else:
+            self.logger.error(u'"{}" disable schedule command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def get_schedule(self):
-        self.logger.info(u'"{}" get schedule'.format(self.name))
-        self.logger.info(u"{}".format(self.robot.get_schedule().text))
+        if self.states['connected']:
+            self.logger.info(u'"{}" get schedule'.format(self.name))
+            result_dict = self.robot.get_schedule().json()
+            self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+        else:
+            self.logger.error(u'"{}" get schedule command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def get_general_info(self):
-        self.logger.info(u'"{}" get general info'.format(self.name))
-        self.logger.info(u"{}".format(self.robot.get_general_info().text))
+        if self.states['connected']:
+            self.logger.info(u'"{}" get general info'.format(self.name))
+            result_dict = self.robot.get_general_info().json()
+            self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+        else:
+            self.logger.error(u'"{}" get general info command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def get_local_stats(self):
-        self.logger.info(u'"{}" get local stats'.format(self.name))
-        self.logger.info(u"{}".format(self.robot.get_local_stats().text))
+        if self.states['connected']:
+            self.logger.info(u'"{}" get local stats'.format(self.name))
+            result_dict = self.robot.get_local_stats().json()
+            self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+        else:
+            self.logger.error(u'"{}" get local stats command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def get_preferences(self):
-        self.logger.info(u'"{}" get preferences'.format(self.name))
-        self.logger.info(u"{}".format(self.robot.get_preferences().text))
+        if self.states['connected']:
+            self.logger.info(u'"{}" get preferences'.format(self.name))
+            result_dict = self.robot.get_preferences().json()
+            self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+        else:
+            self.logger.error(u'"{}" get preferences command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def get_map_boundaries(self):
-        self.logger.info(u'"{}" get map boundaries'.format(self.name))
-        self.logger.info(u"{}".format(self.robot.get_map_boundaries().text))
+        if self.states['connected']:
+            self.logger.info(u'"{}" get map boundaries'.format(self.name))
+            result_dict = self.robot.get_map_boundaries().json()
+            self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+        else:
+            self.logger.error(u'"{}" get map boundaries command not currently available'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def get_robot_info(self):
-        self.logger.info(u'"{}" get robot info'.format(self.name))
-        self.logger.info(u"{}".format(self.robot.get_robot_info().text))
+        if self.states['connected']:
+            self.logger.info(u'"{}" get robot info'.format(self.name))
+            result_dict = self.robot.get_robot_info().json()
+            self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+        else:
+            self.logger.error(u'"{}" get robot info command not currently available'.format(self.name))
 
 
 ################################################################################
