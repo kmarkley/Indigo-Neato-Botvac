@@ -142,6 +142,14 @@ class Plugin(indigo.PluginBase):
             self.logger.error(u'No account credentials - check plugin config')
 
     #-------------------------------------------------------------------------------
+    def getRobotSecret(self, serial, update=False):
+        if update:
+            self.updateAccount()
+        for robot in self.account.robots:
+            if serial == robot.serial:
+                return robot.secret
+
+    #-------------------------------------------------------------------------------
     def toggleDebug(self):
         if self.debug:
             self.logger.debug(u'Debug logging disabled')
@@ -156,12 +164,8 @@ class Plugin(indigo.PluginBase):
     def deviceStartComm(self, dev):
         if dev.configured:
             # dev.stateListOrDisplayStateIdChanged()
-            for robot in self.account.robots:
-                if dev.pluginProps['serial'] == robot.serial:
-                    secret = robot.secret
-                    break
             if dev.deviceTypeId == 'NeatoBotvac':
-                self.instance_dict[dev.id] = Botvac(dev, secret, self.logger)
+                self.instance_dict[dev.id] = Botvac(dev, self.logger, self.getRobotSecret)
 
     #-------------------------------------------------------------------------------
     def deviceStopComm(self, dev):
@@ -230,7 +234,7 @@ class Plugin(indigo.PluginBase):
         # STATUS REQUEST
         if action.deviceAction == indigo.kUniversalAction.RequestStatus:
             self.logger.info('"{}" status update'.format(dev.name))
-            instance.task(instance.requestStatus)
+            instance.task(instance.request_status)
         # UNKNOWN
         else:
             self.logger.debug(u'"{}" {} request ignored'.format(dev.name, action.deviceAction))
@@ -316,34 +320,37 @@ class Plugin(indigo.PluginBase):
 # Classes
 ###############################################################################
 class Botvac(threading.Thread):
-    # class properties
-    k_update_states = ['state','robot_name']
 
     #-------------------------------------------------------------------------------
-    def __init__(self, device, secret, logger):
+    def __init__(self, device, logger, getSecret):
         super(Botvac, self).__init__()
         self.daemon     = True
         self.cancelled  = False
         self.queue      = Queue.Queue()
 
         self.logger = logger
+        self.getSecret = getSecret
 
         self.device = device
         self.props  = device.pluginProps
-
         self.frequency = int(self.props.get('statusFrequency','300'))
 
         self.states = dict()
         self.available_commands = dict()
         self.next_update = 0
 
+        self.initialize_communication()
+
+        self.task(self.request_status)
+        self.start()
+
+    #-------------------------------------------------------------------------------
+    def initialize_communication(self):
         try:
+            secret = self.getSecret(self.props['serial'])
             self.robot = Robot(self.props['serial'], secret, self.props['traits'], self.props['name'])
         except Exception as e:
             self.logger.error(u'"{}" initialization error.  Try updating Neato account from plugin menu.'.format(self.name))
-
-        self.task(self.requestStatus)
-        self.start()
 
     #-------------------------------------------------------------------------------
     def run(self):
@@ -375,10 +382,10 @@ class Botvac(threading.Thread):
     #-------------------------------------------------------------------------------
     def tick(self):
         if time.time() >= self.next_update:
-            self.requestStatus()
+            self.request_status()
 
     #-------------------------------------------------------------------------------
-    def requestStatus(self):
+    def request_status(self):
         self.logger.info(u'"{}" request status'.format(self.name))
         self.next_update = time.time() + self.frequency
         robot_status = u''
@@ -449,7 +456,7 @@ class Botvac(threading.Thread):
                 self.robot.start_cleaning(mode=int(props['mode']), navigation_mode=int(props['navigation']), category=int(props['map']))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" start cleaning command not currently available'.format(self.name))
 
@@ -461,7 +468,7 @@ class Botvac(threading.Thread):
                 self.robot.start_spot_cleaning(spot_width=int(props['width']), spot_height=int(props['height']))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" start cleaning command not currently available'.format(self.name))
 
@@ -473,7 +480,7 @@ class Botvac(threading.Thread):
                 self.robot.pause_cleaning()
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" pause cleaning command not currently available'.format(self.name))
 
@@ -485,7 +492,7 @@ class Botvac(threading.Thread):
                 self.robot.resume_cleaning()
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" resume cleaning command not currently available'.format(self.name))
 
@@ -497,7 +504,7 @@ class Botvac(threading.Thread):
                 self.robot.stop_cleaning()
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" stop cleaning command not currently available'.format(self.name))
 
@@ -509,7 +516,7 @@ class Botvac(threading.Thread):
                 self.robot.send_to_base()
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" go to base command not currently available'.format(self.name))
 
@@ -521,7 +528,7 @@ class Botvac(threading.Thread):
                 self.robot.locate()
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" locate command not currently available'.format(self.name))
 
@@ -533,7 +540,7 @@ class Botvac(threading.Thread):
                 self.robot.enable_schedule()
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" enable schedule command not currently available'.format(self.name))
 
@@ -545,7 +552,7 @@ class Botvac(threading.Thread):
                 self.robot.disable_schedule()
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-            self.requestStatus()
+            self.request_status()
         else:
             self.logger.error(u'"{}" disable schedule command not currently available'.format(self.name))
 
@@ -558,7 +565,7 @@ class Botvac(threading.Thread):
                 self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-                self.requestStatus()
+                self.request_status()
         else:
             self.logger.error(u'"{}" get schedule command not currently available'.format(self.name))
 
@@ -571,7 +578,7 @@ class Botvac(threading.Thread):
                 self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-                self.requestStatus()
+                self.request_status()
         else:
             self.logger.error(u'"{}" get general info command not currently available'.format(self.name))
 
@@ -584,7 +591,7 @@ class Botvac(threading.Thread):
                 self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-                self.requestStatus()
+                self.request_status()
         else:
             self.logger.error(u'"{}" get local stats command not currently available'.format(self.name))
 
@@ -597,7 +604,7 @@ class Botvac(threading.Thread):
                 self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-                self.requestStatus()
+                self.request_status()
         else:
             self.logger.error(u'"{}" get preferences command not currently available'.format(self.name))
 
@@ -610,7 +617,7 @@ class Botvac(threading.Thread):
                 self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-                self.requestStatus()
+                self.request_status()
         else:
             self.logger.error(u'"{}" get map boundaries command not currently available'.format(self.name))
 
@@ -623,7 +630,7 @@ class Botvac(threading.Thread):
                 self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
             except RequestException:
                 self.logger.error(u'"{}" communication error'.format(self.name))
-                self.requestStatus()
+                self.request_status()
         else:
             self.logger.error(u'"{}" get robot info command not currently available'.format(self.name))
 
