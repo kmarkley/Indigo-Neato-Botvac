@@ -335,7 +335,26 @@ class Botvac(threading.Thread):
         self.props  = device.pluginProps
         self.frequency = int(self.props.get('statusFrequency','300'))
 
-        self.states = dict()
+        self.states = {
+            'state'            : k_robot_state[0],
+            'action'           : k_robot_action[0],
+            'error'            : '',
+            'category'         : '',
+            'mode'             : '',
+            'modifier'         : '',
+            'navigation'       : '',
+            'spot_height'      : 0,
+            'spot_width'       : 0,
+            'firmware'         : '',
+            'model'            : '',
+            'batteryLevel'     : 0,
+            'charging'         : False,
+            'docked'           : False,
+            'dock_seen'        : False,
+            'schedule_enabled' : False,
+            'connected'        : False,
+            'display'          : 'offline',
+            }
         self.available_commands = dict()
         self.next_update = 0
 
@@ -392,23 +411,23 @@ class Botvac(threading.Thread):
         try:
             robot_status = self.robot.state
 
-            self.states['state']            = k_robot_state[robot_status['state']]
-            self.states['action']           = k_robot_action[robot_status['action']]
-            self.states['error']            = robot_status['error']
-            self.states['category']         = k_robot_cleaning_category[robot_status['cleaning']['category']]
-            self.states['mode']             = k_robot_cleaning_mode[robot_status['cleaning']['mode']]
-            self.states['modifier']         = k_robot_cleaning_modifier[robot_status['cleaning']['modifier']]
-            self.states['navigation']       = k_robot_cleaning_navigation[robot_status['cleaning']['navigationMode']]
-            self.states['spot_height']      = robot_status['cleaning']['spotHeight']
-            self.states['spot_width']       = robot_status['cleaning']['spotWidth']
-            self.states['firmware']         = robot_status['meta']['firmware']
-            self.states['model']            = robot_status['meta']['modelName']
-            self.states['batteryLevel']     = robot_status['details']['charge']
-            self.states['charging']         = robot_status['details']['isCharging']
-            self.states['docked']           = robot_status['details']['isDocked']
-            self.states['dock_seen']        = robot_status['details']['dockHasBeenSeen']
-            self.states['schedule_enabled'] = robot_status['details']['isScheduleEnabled']
-            self.available_commands         = robot_status['availableCommands']
+            self.states['state']            = k_robot_state[robot_status.get('state',0)]
+            self.states['action']           = k_robot_action[robot_status.get('action',0)]
+            self.states['error']            = robot_status.get('error','')
+            self.states['category']         = k_robot_cleaning_category.get(robot_status.get('cleaning',{}).get('category',None),'')
+            self.states['mode']             = k_robot_cleaning_mode.get(robot_status.get('cleaning',{}).get('mode',None),'')
+            self.states['modifier']         = k_robot_cleaning_modifier.get(robot_status.get('cleaning',{}).get('modifier',None),'')
+            self.states['navigation']       = k_robot_cleaning_navigation.get(robot_status.get('cleaning',{}).get('navigationMode',None),'')
+            self.states['spot_height']      = robot_status.get('cleaning',{}).get('spotHeight',0)
+            self.states['spot_width']       = robot_status.get('cleaning',{}).get('spotWidth',0)
+            self.states['firmware']         = robot_status.get('meta',{}).get('firmware','')
+            self.states['model']            = robot_status.get('meta',{}).get('modelName','')
+            self.states['batteryLevel']     = robot_status.get('details',{}).get('charge',0)
+            self.states['charging']         = robot_status.get('details',{}).get('isCharging',False)
+            self.states['docked']           = robot_status.get('details',{}).get('isDocked',False)
+            self.states['dock_seen']        = robot_status.get('details',{}).get('dockHasBeenSeen',False)
+            self.states['schedule_enabled'] = robot_status.get('details',{}).get('isScheduleEnabled',False)
+            self.available_commands         = robot_status.get('availableCommands',{})
 
             self.states['connected']        = True
 
@@ -450,7 +469,7 @@ class Botvac(threading.Thread):
     # action methods
     #-------------------------------------------------------------------------------
     def start_cleaning(self, props):
-        if self.available_commands['start'] and self.states['connected']:
+        if self.available_commands.get('start',False) and self.states['connected']:
             try:
                 self.logger.info(u'"{}" start house cleaning'.format(self.name))
                 self.robot.start_cleaning(mode=int(props['mode']), navigation_mode=int(props['navigation']), category=int(props['map']))
@@ -462,7 +481,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def start_spot_cleaning(self, props):
-        if self.available_commands['start'] and self.states['connected']:
+        if self.available_commands.get('start',False) and self.states['connected']:
             try:
                 self.logger.info(u'"{}" start spot cleaning'.format(self.name))
                 self.robot.start_spot_cleaning(spot_width=int(props['width']), spot_height=int(props['height']))
@@ -474,7 +493,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def pause_cleaning(self):
-        if self.available_commands['pause'] and self.states['connected']:
+        if self.available_commands.get('pause',False) and self.states['connected']:
             try:
                 self.logger.info(u'"{}" pause cleaning'.format(self.name))
                 self.robot.pause_cleaning()
@@ -486,7 +505,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def resume_cleaning(self):
-        if self.available_commands['resume'] and self.states['connected']:
+        if self.available_commands.get('resume',False) and self.states['connected']:
             try:
                 self.logger.info(u'"{}" resume cleaning'.format(self.name))
                 self.robot.resume_cleaning()
@@ -498,7 +517,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def stop_cleaning(self):
-        if self.available_commands['stop'] and self.states['connected']:
+        if self.available_commands.get('stop',False) and self.states['connected']:
             try:
                 self.logger.info(u'"{}" resume cleaning'.format(self.name))
                 self.robot.stop_cleaning()
@@ -510,7 +529,7 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def send_to_base(self):
-        if self.available_commands['goToBase'] and self.states['connected']:
+        if self.available_commands.get('goToBase',False) and self.states['connected']:
             try:
                 self.logger.info(u'"{}" go to base'.format(self.name))
                 self.robot.send_to_base()
