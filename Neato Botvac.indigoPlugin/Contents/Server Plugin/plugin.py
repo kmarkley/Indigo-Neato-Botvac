@@ -339,10 +339,10 @@ class Botvac(threading.Thread):
             'state'            : k_robot_state[0],
             'action'           : k_robot_action[0],
             'error'            : '',
-            'category'         : '',
-            'mode'             : '',
-            'modifier'         : '',
-            'navigation'       : '',
+            'category'         : 0,
+            'mode'             : 1,
+            'modifier'         : 1,
+            'navigation'       : 1,
             'spot_height'      : 0,
             'spot_width'       : 0,
             'firmware'         : '',
@@ -407,17 +407,17 @@ class Botvac(threading.Thread):
     def request_status(self):
         self.logger.info(u'"{}" request status'.format(self.name))
         self.next_update = time.time() + self.frequency
-        robot_status = u''
+        robot_status = {}
         try:
             robot_status = self.robot.state
 
             self.states['state']            = k_robot_state[robot_status.get('state',0)]
             self.states['action']           = k_robot_action[robot_status.get('action',0)]
-            self.states['error']            = robot_status.get('error','')
-            self.states['category']         = k_robot_cleaning_category.get(robot_status.get('cleaning',{}).get('category',None),'')
-            self.states['mode']             = k_robot_cleaning_mode.get(robot_status.get('cleaning',{}).get('mode',None),'')
-            self.states['modifier']         = k_robot_cleaning_modifier.get(robot_status.get('cleaning',{}).get('modifier',None),'')
-            self.states['navigation']       = k_robot_cleaning_navigation.get(robot_status.get('cleaning',{}).get('navigationMode',None),'')
+            self.states['error']            = robot_status.get('error','') if self.states['state']=='error' else ''
+            self.states['category']         = k_robot_cleaning_category[robot_status.get('cleaning',{}).get('category',0)]
+            self.states['mode']             = k_robot_cleaning_mode[robot_status.get('cleaning',{}).get('mode',1)]
+            self.states['modifier']         = k_robot_cleaning_modifier[robot_status.get('cleaning',{}).get('modifier',1)]
+            self.states['navigation']       = k_robot_cleaning_navigation[robot_status.get('cleaning',{}).get('navigationMode',1)]
             self.states['spot_height']      = robot_status.get('cleaning',{}).get('spotHeight',0)
             self.states['spot_width']       = robot_status.get('cleaning',{}).get('spotWidth',0)
             self.states['firmware']         = robot_status.get('meta',{}).get('firmware','')
@@ -437,6 +437,7 @@ class Botvac(threading.Thread):
         except KeyError:
             self.logger.error(u'"{}" received malformed status message'.format(self.name))
             self.logger.debug(u'{}'.format(json.dumps(robot_status, sort_keys=True, indent=4)))
+            self.states['connected'] = False
 
         if self.states['connected'] == False:
             self.states['display'] = 'offline'
