@@ -82,10 +82,16 @@
 						<Option value='manual'>Manual</Option>
 					    <Option value='house'>House</Option>
 					    <Option value='spot'>Spot</Option>
+						<Option value='room'>Spot</Option>
 					</List>
 				</ValueType>
 				<TriggerLabel>Cleaning Category Is</TriggerLabel>
 				<ControlPageLabel>Cleaning Category</ControlPageLabel>
+			</State>
+			<State id='room'>
+				<ValueType>String</ValueType>
+				<TriggerLabel>Room Is</TriggerLabel>
+				<ControlPageLabel>Room</ControlPageLabel>
 			</State>
 			<State id='mode'>
 				<ValueType>

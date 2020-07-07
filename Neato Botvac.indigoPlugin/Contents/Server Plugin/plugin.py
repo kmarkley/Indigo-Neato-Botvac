@@ -11,6 +11,7 @@ import json
 
 from pybotvac import Account
 from pybotvac import Robot
+from pybotvac.exceptions import NeatoException
 
 from requests import RequestException
 
@@ -39,13 +40,14 @@ k_robot_action = {
     12: 'exploring_map',
     13: 'acquiring_persistent_maps',
     14: 'creating_uploading_map',
-    15: 'suspended_exploration'
+    15: 'suspended_exploration',
     }
 k_robot_cleaning_category = {
     0:  'none',
     1:  'manual',
     2:  'house',
-    3:  'spot'
+    3:  'spot',
+    4:  'room',
     }
 k_robot_cleaning_mode = {
     1:  'eco',
@@ -61,6 +63,8 @@ k_robot_cleaning_navigation = {
     3:  'deep'
     }
 
+RETRY_CONNECTION_MINUTES = 15
+
 ################################################################################
 class Plugin(indigo.PluginBase):
 
@@ -69,6 +73,7 @@ class Plugin(indigo.PluginBase):
         super(Plugin, self).__init__(pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
 
         self.account = None
+        self.connected = False
         self.instance_dict = dict()
 
     #-------------------------------------------------------------------------------
@@ -108,12 +113,17 @@ class Plugin(indigo.PluginBase):
 
     #-------------------------------------------------------------------------------
     def runConcurrentThread(self):
+        next_connection = time.time() + RETRY_CONNECTION_MINUTES*60
         try:
             while True:
                 loop_time = time.time()
                 for instance in self.instance_dict.values():
                     instance.task(instance.tick)
-                self.sleep(1)
+                if not self.connected:
+                    if loop_time > next_connection:
+                        self.updateAccount()
+                        next_connection = loop_time + RETRY_CONNECTION_MINUTES*60
+                self.sleep(5)
         except self.StopThread:
             pass
 
@@ -121,13 +131,14 @@ class Plugin(indigo.PluginBase):
     # menu methods
     #-------------------------------------------------------------------------------
     def updateAccount(self):
+        self.connected = False
         email = self.pluginPrefs.get('email','')
         password = self.pluginPrefs.get('password','')
-
         if email and password:
             try:
                 self.account = Account(email, password)
                 robots = self.account.robots
+                self.connected = True
                 self.logger.info(u'Neato account updated')
                 if len(robots) > 0:
                     self.logger.info(u'Robots found:')
@@ -136,18 +147,22 @@ class Plugin(indigo.PluginBase):
                 else:
                     self.logger.error(u'No robots found')
             except:
-                self.logger.error(u'Error accessing Neato account - check plugin config')
+                self.logger.error(u'Error accessing Neato account - check plugin config and internet connection')
         else:
             # plugin is not configured
             self.logger.error(u'No account credentials - check plugin config')
 
     #-------------------------------------------------------------------------------
-    def getRobotSecret(self, serial, update=False):
-        if update:
-            self.updateAccount()
-        for robot in self.account.robots:
-            if serial == robot.serial:
-                return robot.secret
+    def getRobotInstance(self, serial):
+        if self.connected:
+            for robot in self.account.robots:
+                if serial == robot.serial:
+                    return robot
+        return None
+
+    #-------------------------------------------------------------------------------
+    def accountConnected(self):
+        return self.connected
 
     #-------------------------------------------------------------------------------
     def toggleDebug(self):
@@ -163,9 +178,13 @@ class Plugin(indigo.PluginBase):
     #-------------------------------------------------------------------------------
     def deviceStartComm(self, dev):
         if dev.configured:
-            # dev.stateListOrDisplayStateIdChanged()
-            if dev.deviceTypeId == 'NeatoBotvac':
-                self.instance_dict[dev.id] = Botvac(dev, self.logger, self.getRobotSecret)
+            if not dev.version or ver(dev.version) < self.pluginVersion:
+                props = dev.pluginProps
+                props['version'] = self.pluginVersion
+                dev.replacePluginPropsOnServer(props)
+                dev.stateListOrDisplayStateIdChanged()
+            self.instance_dict[dev.id] = Botvac(dev, self.getRobotInstance, self.logger)
+
 
     #-------------------------------------------------------------------------------
     def deviceStopComm(self, dev):
@@ -322,17 +341,18 @@ class Plugin(indigo.PluginBase):
 class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
-    def __init__(self, device, logger, getSecret):
+    def __init__(self, device, getRobotInstance, logger):
         super(Botvac, self).__init__()
         self.daemon     = True
         self.cancelled  = False
         self.queue      = Queue.Queue()
 
+        self.getRobot = getRobotInstance
         self.logger = logger
-        self.getSecret = getSecret
 
         self.device = device
         self.props  = device.pluginProps
+        self.serial = self.props.get('serial','')
         self.frequency = int(self.props.get('statusFrequency','300'))
 
         self.states = {
@@ -357,19 +377,10 @@ class Botvac(threading.Thread):
             }
         self.available_commands = dict()
         self.next_update = 0
-
-        self.initialize_communication()
+        self.error = False
 
         self.task(self.request_status)
         self.start()
-
-    #-------------------------------------------------------------------------------
-    def initialize_communication(self):
-        try:
-            secret = self.getSecret(self.props['serial'])
-            self.robot = Robot(self.props['serial'], secret, self.props['traits'], self.props['name'])
-        except Exception as e:
-            self.logger.error(u'"{}" initialization error.  Try updating Neato account from plugin menu.'.format(self.name))
 
     #-------------------------------------------------------------------------------
     def run(self):
@@ -408,54 +419,72 @@ class Botvac(threading.Thread):
         self.logger.info(u'"{}" request status'.format(self.name))
         self.next_update = time.time() + self.frequency
         robot_status = {}
-        try:
-            robot_status = self.robot.state
 
-            self.states['state']            = k_robot_state[robot_status.get('state',0)]
-            self.states['action']           = k_robot_action[robot_status.get('action',0)]
-            self.states['error']            = robot_status.get('error','') if self.states['state']=='error' else ''
-            self.states['category']         = k_robot_cleaning_category[robot_status.get('cleaning',{}).get('category',0)]
-            self.states['mode']             = k_robot_cleaning_mode[robot_status.get('cleaning',{}).get('mode',1)]
-            self.states['modifier']         = k_robot_cleaning_modifier[robot_status.get('cleaning',{}).get('modifier',1)]
-            self.states['navigation']       = k_robot_cleaning_navigation[robot_status.get('cleaning',{}).get('navigationMode',1)]
-            self.states['spot_height']      = robot_status.get('cleaning',{}).get('spotHeight',0)
-            self.states['spot_width']       = robot_status.get('cleaning',{}).get('spotWidth',0)
-            self.states['firmware']         = robot_status.get('meta',{}).get('firmware','')
-            self.states['model']            = robot_status.get('meta',{}).get('modelName','')
-            self.states['batteryLevel']     = robot_status.get('details',{}).get('charge',0)
-            self.states['charging']         = robot_status.get('details',{}).get('isCharging',False)
-            self.states['docked']           = robot_status.get('details',{}).get('isDocked',False)
-            self.states['dock_seen']        = robot_status.get('details',{}).get('dockHasBeenSeen',False)
-            self.states['schedule_enabled'] = robot_status.get('details',{}).get('isScheduleEnabled',False)
-            self.available_commands         = robot_status.get('availableCommands',{})
-
-            self.states['connected']        = True
-
-        except RequestException:
-            self.logger.info(u'"{}" offline'.format(self.name))
-            self.states['connected'] = False
-        except KeyError:
-            self.logger.error(u'"{}" received malformed status message'.format(self.name))
-            self.logger.debug(u'{}'.format(json.dumps(robot_status, sort_keys=True, indent=4)))
-            self.states['connected'] = False
-
-        if self.states['connected'] == False:
-            self.states['display'] = 'offline'
-        elif self.states['state'] == 'busy':
-            self.states['display'] = self.states['action']
+        self.robot = self.getRobot(self.serial)
+        if not self.robot:
+            self.device.setErrorStateOnServer('offline')
+            self.error = True
+            self.logger.error(u'"{}" offline'.format(self.name))
+            self.available_commands = {}
         else:
-            self.states['display'] = self.states['state']
-        self.states['display'] = self.states['display'].replace('_',' ')
+            if self.error:
+                self.device.setErrorStateOnServer(None)
+                self.error = False
+                self.logger.info(u'"{}" online'.format(self.name))
 
-        if self.states['state'] in ['invalid','error'] or self.states['connected'] == False:
-            stateImg = indigo.kStateImageSel.SensorTripped
-        elif self.states['state'] == 'busy':
-            stateImg = indigo.kStateImageSel.SensorOn
-        else: # idle, paused
-            stateImg = indigo.kStateImageSel.SensorOff
+            try:
+                robot_status = self.robot.state
 
-        self.device.updateStatesOnServer([{'key':key,'value':self.states[key]} for key in self.states])
-        self.device.updateStateImageOnServer(stateImg)
+                self.states['state']            = k_robot_state[robot_status.get('state',0)]
+                self.states['action']           = k_robot_action[robot_status.get('action',0)]
+                self.states['error']            = robot_status.get('error','') if self.states['state']=='error' else ''
+                self.states['room']             = robot_status.get('cleaning',{}).get('boundary',{}).get('name','')
+                self.states['category']         = k_robot_cleaning_category[robot_status.get('cleaning',{}).get('category',0)]
+                self.states['mode']             = k_robot_cleaning_mode[robot_status.get('cleaning',{}).get('mode',1)]
+                self.states['modifier']         = k_robot_cleaning_modifier[robot_status.get('cleaning',{}).get('modifier',1)]
+                self.states['navigation']       = k_robot_cleaning_navigation[robot_status.get('cleaning',{}).get('navigationMode',1)]
+                self.states['spot_height']      = robot_status.get('cleaning',{}).get('spotHeight',0)
+                self.states['spot_width']       = robot_status.get('cleaning',{}).get('spotWidth',0)
+                self.states['firmware']         = robot_status.get('meta',{}).get('firmware','')
+                self.states['model']            = robot_status.get('meta',{}).get('modelName','')
+                self.states['batteryLevel']     = robot_status.get('details',{}).get('charge',0)
+                self.states['charging']         = robot_status.get('details',{}).get('isCharging',False)
+                self.states['docked']           = robot_status.get('details',{}).get('isDocked',False)
+                self.states['dock_seen']        = robot_status.get('details',{}).get('dockHasBeenSeen',False)
+                self.states['schedule_enabled'] = robot_status.get('details',{}).get('isScheduleEnabled',False)
+                self.available_commands         = robot_status.get('availableCommands',{})
+
+                self.states['connected'] = True
+
+            except NeatoException as e:
+                self.logger.error(u'{}'.format(e))
+                self.logger.info(u'"{}" offline'.format(self.name))
+                self.states['connected'] = False
+            except KeyError:
+                self.logger.error(u'"{}" received unexpected status message'.format(self.name))
+                self.logger.debug(u'{}'.format(json.dumps(robot_status, sort_keys=True, indent=4)))
+                self.states['connected'] = False
+
+            if self.states['category'] == 'room' and not self.states['room']:
+                self.states['category'] = 'house'
+
+            if self.states['connected'] == False:
+                self.states['display'] = 'offline'
+            elif self.states['state'] == 'busy':
+                self.states['display'] = self.states['action']
+            else:
+                self.states['display'] = self.states['state']
+            self.states['display'] = self.states['display'].replace('_',' ')
+
+            if self.states['state'] in ['invalid','error'] or self.states['connected'] == False:
+                stateImg = indigo.kStateImageSel.SensorTripped
+            elif self.states['state'] == 'busy':
+                stateImg = indigo.kStateImageSel.SensorOn
+            else: # idle, paused
+                stateImg = indigo.kStateImageSel.SensorOff
+
+            self.device.updateStatesOnServer([{'key':key,'value':self.states[key]} for key in self.states])
+            self.device.updateStateImageOnServer(stateImg)
 
         self.logger.debug(u'"{}" status update complete'.format(self.name))
 
@@ -668,3 +697,7 @@ def validateTextFieldNumber(rawInput, numType=float, zero=True, negative=True):
         return True
     except:
         return False
+
+
+#-------------------------------------------------------------------------------
+def ver(vstr): return tuple(map(int, (vstr.split('.'))))
