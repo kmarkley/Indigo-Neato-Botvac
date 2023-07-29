@@ -12,7 +12,7 @@
 			</Field>
 			<Field id='separator' type='separator' />
 			<Field id='statusFrequency' type='menu' defaultValue='300'>
-				<Label>Frequency:</Label>
+				<Label>Idle Update Frequency:</Label>
 				<List>
 					<Option value='60'>1 Minute (testing)</Option>
 					<Option value='120'>2 Minutes (anxious)</Option>
@@ -20,8 +20,18 @@
 					<Option value='600'>10 Minutes (laid back)</Option>
 				</List>
 			</Field>
-			<Field id='frequencyHelp' type='label' alignWithControl='true' fontSize='small' fontColor='darkgray'>
-				<Label>Device status is only updated by pulling data from the cloud.  Choose the slowest option you can stand.</Label>
+			<Field id='statusFrequencyBusy' type='menu' defaultValue='120'>
+				<Label>Busy Update Frequency:</Label>
+				<List>
+					<Option value='30'>30 Seconds</Option>
+					<Option value='60'>1 Minute</Option>
+					<Option value='120'>2 Minutes</Option>
+					<Option value='300'>5 Minutes</Option>
+					<Option value='600'>10 Minutes</Option>
+				</List>
+			</Field>
+			<Field id='frequencyHelp' type='label' alignWithControl='false' fontSize='small' fontColor='darkgray'>
+				<Label>Device status is only updated by pulling data from the cloud.  Choose the slowest options you can stand.</Label>
 			</Field>
 			<Field id='SupportsBatteryLevel'  type='checkbox' defaultValue='true' hidden='true' />
 			<Field id='SupportsStatusRequest' type='checkbox' defaultValue='true' hidden='true'/>

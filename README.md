@@ -11,3 +11,7 @@ Third Thing To Know: I have had occasional issues with Neato failing to recogniz
 Fourth Thing To Know: The plugin reproduces all the states and all the commands in the 3rd party library it depends on.  It makes no attempt to determine if any of them are applicable to your model or not.  So a lot of things may simply not work unless your specific machine supports them.
 
 If you're cool with all that, it should be easy to use.  Set up your account credentials in the plugin config, and then create devices for your vacuums. There are a number of actions available.
+
+### The pybotvac library must now be manually installed from terminal:
+
+   `pip3 install pybotvac`

@@ -5,15 +5,21 @@
 import indigo
 
 import threading
-import Queue
+import queue
 import time
 import json
-
-from pybotvac import Account
-from pybotvac import Robot
-from pybotvac.exceptions import NeatoException
-
 from requests import RequestException
+
+try:
+    from pybotvac import Account, Neato, PasswordSession
+    from pybotvac import Robot
+    from pybotvac.exceptions import NeatoException
+except:
+    indigo.server.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", isError=True)
+    indigo.server.log("pybotvac library must now be manually installed from terminal:", isError=True)
+    indigo.server.log("    pip3 install pybotvac", isError=True)
+    indigo.server.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", isError=True)
+    
 
 ################################################################################
 # globals
@@ -82,7 +88,7 @@ class Plugin(indigo.PluginBase):
     def startup(self):
         self.debug = self.pluginPrefs.get('showDebugInfo',False)
         if self.debug:
-            self.logger.debug(u'Debug logging enabled')
+            self.logger.debug('Debug logging enabled')
 
         self.updateAccount()
 
@@ -96,10 +102,10 @@ class Plugin(indigo.PluginBase):
 
         for key in ['email','password']:
             if not valuesDict.get(key,''):
-                errorsDict[key] = u'Required'
+                errorsDict[key] = 'Required'
 
         if len(errorsDict) > 0:
-            self.logger.debug(u'validate plugin config error: \n{}'.format(errorsDict))
+            self.logger.debug(f'validate plugin config error: \n{errorsDict}')
             return (False, valuesDict, errorsDict)
         return (True, valuesDict)
 
@@ -109,7 +115,7 @@ class Plugin(indigo.PluginBase):
             self.updateAccount()
             self.debug = valuesDict.get('showDebugInfo',False)
             if self.debug:
-                self.logger.debug(u'Debug logging enabled')
+                self.logger.debug('Debug logging enabled')
 
     #-------------------------------------------------------------------------------
     def runConcurrentThread(self):
@@ -136,21 +142,23 @@ class Plugin(indigo.PluginBase):
         password = self.pluginPrefs.get('password','')
         if email and password:
             try:
-                self.account = Account(email, password)
+                password_session = PasswordSession(email=email, password=password, vendor=Neato())
+                self.account = Account(password_session)
                 robots = self.account.robots
                 self.connected = True
-                self.logger.info(u'Neato account updated')
+                self.logger.info('Neato account updated')
                 if len(robots) > 0:
-                    self.logger.info(u'Robots found:')
+                    self.logger.info('Robots found:')
                     for robot in self.account.robots:
-                        self.logger.info(u'     {} ({})'.format(robot.name, robot.serial))
+                        self.logger.info(f'     {robot.name} ({robot.serial})')
                 else:
-                    self.logger.error(u'No robots found')
-            except:
-                self.logger.error(u'Error accessing Neato account - check plugin config and internet connection')
+                    self.logger.error('No robots found')
+            except Exception as e:
+                self.logger.error('Error accessing Neato account - check plugin config and internet connection')
+                self.logger.debug(str(e))
         else:
             # plugin is not configured
-            self.logger.error(u'No account credentials - check plugin config')
+            self.logger.error('No account credentials - check plugin config')
 
     #-------------------------------------------------------------------------------
     def getRobotInstance(self, serial):
@@ -167,18 +175,18 @@ class Plugin(indigo.PluginBase):
     #-------------------------------------------------------------------------------
     def toggleDebug(self):
         if self.debug:
-            self.logger.debug(u'Debug logging disabled')
+            self.logger.debug('Debug logging disabled')
             self.debug = False
         else:
             self.debug = True
-            self.logger.debug(u'Debug logging enabled')
+            self.logger.debug('Debug logging enabled')
 
     #-------------------------------------------------------------------------------
     # device methods
     #-------------------------------------------------------------------------------
     def deviceStartComm(self, dev):
         if dev.configured:
-            if not dev.version or ver(dev.version) < self.pluginVersion:
+            if not dev.version or ver(dev.version) < ver(self.pluginVersion):
                 props = dev.pluginProps
                 props['version'] = self.pluginVersion
                 dev.replacePluginPropsOnServer(props)
@@ -199,7 +207,7 @@ class Plugin(indigo.PluginBase):
         errorsDict = indigo.Dict()
 
         if not valuesDict.get('serial',None):
-            errorsDict['serial'] = u'Required'
+            errorsDict['serial'] = 'Required'
         else:
             for robot in self.account.robots:
                 if valuesDict['serial'] == robot.serial:
@@ -209,10 +217,10 @@ class Plugin(indigo.PluginBase):
                     valuesDict['address'] = robot.serial
                     break
             else:
-                errorsDict['serial'] = u'Robot not found.  Update account and try again.'
+                errorsDict['serial'] = 'Robot not found.  Update account and try again.'
 
         if len(errorsDict) > 0:
-            self.logger.debug(u'validate device config error: \n{}'.format(errorsDict))
+            self.logger.debug('validate device config error: \n{errorsDict}')
             return (False, valuesDict, errorsDict)
         return (True, valuesDict)
 
@@ -226,7 +234,7 @@ class Plugin(indigo.PluginBase):
             if targetId != 0:
                 return[(self.instance_dict(targetId).props['name'],self.instance_dict(targetId).props['serial'])]
             else:
-                return[(u'**Account Offline**',0)]
+                return[('**Account Offline**',0)]
 
     #-------------------------------------------------------------------------------
     # action methods
@@ -240,7 +248,7 @@ class Plugin(indigo.PluginBase):
                     errorsDict[key] = 'Must be positive integer'
 
         if len(errorsDict) > 0:
-            self.logger.debug(u'validate action config error: \n{}'.format(errorsDict))
+            self.logger.debug(f'validate action config error: \n{errorsDict}')
             return (False, valuesDict, errorsDict)
         return (True, valuesDict)
 
@@ -252,11 +260,11 @@ class Plugin(indigo.PluginBase):
 
         # STATUS REQUEST
         if action.deviceAction == indigo.kUniversalAction.RequestStatus:
-            self.logger.info('"{}" status update'.format(dev.name))
+            self.logger.info(f'"{dev.name}" status update')
             instance.task(instance.request_status)
         # UNKNOWN
         else:
-            self.logger.debug(u'"{}" {} request ignored'.format(dev.name, action.deviceAction))
+            self.logger.debug(f'"{dev.name}" {action.deviceAction} request ignored')
 
     #-------------------------------------------------------------------------------
     # action callbacks
@@ -345,7 +353,7 @@ class Botvac(threading.Thread):
         super(Botvac, self).__init__()
         self.daemon     = True
         self.cancelled  = False
-        self.queue      = Queue.Queue()
+        self.queue      = queue.Queue()
 
         self.getRobot = getRobotInstance
         self.logger = logger
@@ -353,7 +361,8 @@ class Botvac(threading.Thread):
         self.device = device
         self.props  = device.pluginProps
         self.serial = self.props.get('serial','')
-        self.frequency = int(self.props.get('statusFrequency','300'))
+        self.frequency_idle = int(self.props.get('statusFrequency','300'))
+        self.frequency_busy = int(self.props.get('statusFrequencyBusy',self.frequency_idle))
 
         self.states = {
             'state'            : k_robot_state[0],
@@ -384,21 +393,21 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def run(self):
-        self.logger.debug('"{}" thread started'.format(self.name))
+        self.logger.debug(f'"{self.name}" thread started')
         while not self.cancelled:
             try:
                 func, args = self.queue.get(True,2)
                 try:
                     func(*args)
                 except NotImplementedError:
-                    self.logger.error(u'"{}" task "{}" not implemented'.format(self.name,func.__name__))
+                    self.logger.error(f'"{self.name}" task "{func.__name__}" not implemented')
                 self.queue.task_done()
-            except Queue.Empty:
+            except queue.Empty:
                 pass
             except Exception as e:
-                self.logger.exception(u'"{}" thread error \n{}'.format(self.name, e))
+                self.logger.exception(f'"{self.name}" thread error \n{e}')
         else:
-            self.logger.debug(u'"{}" thread cancelled'.format(self.name))
+            self.logger.debug(f'"{self.name}" thread cancelled')
 
     #-------------------------------------------------------------------------------
     def task(self, func, *args):
@@ -416,21 +425,20 @@ class Botvac(threading.Thread):
 
     #-------------------------------------------------------------------------------
     def request_status(self):
-        self.logger.info(u'"{}" request status'.format(self.name))
-        self.next_update = time.time() + self.frequency
+        self.logger.info(f'"{self.name}" request status')
         robot_status = {}
 
         self.robot = self.getRobot(self.serial)
         if not self.robot:
             self.device.setErrorStateOnServer('offline')
             self.error = True
-            self.logger.error(u'"{}" offline'.format(self.name))
+            self.logger.error(f'"{self.name}" offline')
             self.available_commands = {}
         else:
             if self.error:
                 self.device.setErrorStateOnServer(None)
                 self.error = False
-                self.logger.info(u'"{}" online'.format(self.name))
+                self.logger.info(f'"{self.name}" online')
 
             try:
                 robot_status = self.robot.state
@@ -454,15 +462,17 @@ class Botvac(threading.Thread):
                 self.states['schedule_enabled'] = robot_status.get('details',{}).get('isScheduleEnabled',False)
                 self.available_commands         = robot_status.get('availableCommands',{})
 
+                self.logger.debug(f'"{self.name}" available commands: {self.available_commands}')
+
                 self.states['connected'] = True
 
             except NeatoException as e:
-                self.logger.error(u'{}'.format(e))
-                self.logger.info(u'"{}" offline'.format(self.name))
+                self.logger.error(f'{e}')
+                self.logger.info(f'"{self.name}" offline')
                 self.states['connected'] = False
             except KeyError:
-                self.logger.error(u'"{}" received unexpected status message'.format(self.name))
-                self.logger.debug(u'{}'.format(json.dumps(robot_status, sort_keys=True, indent=4)))
+                self.logger.error(f'"{self.name}" received unexpected status message')
+                self.logger.debug(f'{json.dumps(robot_status, sort_keys=True, indent=4)}')
                 self.states['connected'] = False
 
             if self.states['category'] == 'room' and not self.states['room']:
@@ -470,10 +480,13 @@ class Botvac(threading.Thread):
 
             if self.states['connected'] == False:
                 self.states['display'] = 'offline'
+                self.next_update = time.time() + self.frequency_idle
             elif self.states['state'] == 'busy':
                 self.states['display'] = self.states['action']
+                self.next_update = time.time() + self.frequency_busy
             else:
                 self.states['display'] = self.states['state']
+                self.next_update = time.time() + self.frequency_idle
             self.states['display'] = self.states['display'].replace('_',' ')
 
             if self.states['state'] in ['invalid','error'] or self.states['connected'] == False:
@@ -486,7 +499,7 @@ class Botvac(threading.Thread):
             self.device.updateStatesOnServer([{'key':key,'value':self.states[key]} for key in self.states])
             self.device.updateStateImageOnServer(stateImg)
 
-        self.logger.debug(u'"{}" status update complete'.format(self.name))
+        self.logger.debug(f'"{self.name}" status update complete')
 
     #-------------------------------------------------------------------------------
     # properties
@@ -501,187 +514,187 @@ class Botvac(threading.Thread):
     def start_cleaning(self, props):
         if self.available_commands.get('start',False) and self.states['connected']:
             try:
-                self.logger.info(u'"{}" start house cleaning'.format(self.name))
+                self.logger.info(f'"{self.name}" start house cleaning')
                 self.robot.start_cleaning(mode=int(props['mode']), navigation_mode=int(props['navigation']), category=int(props['map']))
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" start cleaning command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" start cleaning command not currently available')
 
     #-------------------------------------------------------------------------------
     def start_spot_cleaning(self, props):
         if self.available_commands.get('start',False) and self.states['connected']:
             try:
-                self.logger.info(u'"{}" start spot cleaning'.format(self.name))
+                self.logger.info(f'"{self.name}" start spot cleaning')
                 self.robot.start_spot_cleaning(spot_width=int(props['width']), spot_height=int(props['height']))
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" start cleaning command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" start cleaning command not currently available')
 
     #-------------------------------------------------------------------------------
     def pause_cleaning(self):
         if self.available_commands.get('pause',False) and self.states['connected']:
             try:
-                self.logger.info(u'"{}" pause cleaning'.format(self.name))
+                self.logger.info(f'"{self.name}" pause cleaning')
                 self.robot.pause_cleaning()
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" pause cleaning command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" pause cleaning command not currently available')
 
     #-------------------------------------------------------------------------------
     def resume_cleaning(self):
         if self.available_commands.get('resume',False) and self.states['connected']:
             try:
-                self.logger.info(u'"{}" resume cleaning'.format(self.name))
+                self.logger.info(f'"{self.name}" resume cleaning')
                 self.robot.resume_cleaning()
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" resume cleaning command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" resume cleaning command not currently available')
 
     #-------------------------------------------------------------------------------
     def stop_cleaning(self):
         if self.available_commands.get('stop',False) and self.states['connected']:
             try:
-                self.logger.info(u'"{}" resume cleaning'.format(self.name))
+                self.logger.info(f'"{self.name}" stop cleaning')
                 self.robot.stop_cleaning()
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" stop cleaning command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" stop cleaning command not currently available')
 
     #-------------------------------------------------------------------------------
     def send_to_base(self):
         if self.available_commands.get('goToBase',False) and self.states['connected']:
             try:
-                self.logger.info(u'"{}" go to base'.format(self.name))
+                self.logger.info(f'"{self.name}" go to base')
                 self.robot.send_to_base()
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" go to base command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" go to base command not currently available')
 
     #-------------------------------------------------------------------------------
     def locate(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" locate'.format(self.name))
+                self.logger.info(f'"{self.name}" locate')
                 self.robot.locate()
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" locate command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" locate command not currently available')
 
     #-------------------------------------------------------------------------------
     def enable_schedule(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" enable schedule'.format(self.name))
+                self.logger.info(f'"{self.name}" enable schedule')
                 self.robot.enable_schedule()
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" enable schedule command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" enable schedule command not currently available')
 
     #-------------------------------------------------------------------------------
     def disable_schedule(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" disable schedule'.format(self.name))
+                self.logger.info(f'"{self.name}" disable schedule')
                 self.robot.disable_schedule()
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
             self.request_status()
         else:
-            self.logger.error(u'"{}" disable schedule command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" disable schedule command not currently available')
 
     #-------------------------------------------------------------------------------
     def get_schedule(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" get schedule'.format(self.name))
+                self.logger.info(f'"{self.name}" get schedule')
                 result_dict = self.robot.get_schedule().json()
-                self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+                self.logger.info(f"{json.dumps(result_dict, sort_keys=True, indent=4)}")
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
                 self.request_status()
         else:
-            self.logger.error(u'"{}" get schedule command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" get schedule command not currently available')
 
     #-------------------------------------------------------------------------------
     def get_general_info(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" get general info'.format(self.name))
+                self.logger.info(f'"{self.name}" get general info')
                 result_dict = self.robot.get_general_info().json()
-                self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+                self.logger.info(f"{json.dumps(result_dict, sort_keys=True, indent=4)}")
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
                 self.request_status()
         else:
-            self.logger.error(u'"{}" get general info command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" get general info command not currently available')
 
     #-------------------------------------------------------------------------------
     def get_local_stats(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" get local stats'.format(self.name))
+                self.logger.info(f'"{self.name}" get local stats')
                 result_dict = self.robot.get_local_stats().json()
-                self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+                self.logger.info(f"{json.dumps(result_dict, sort_keys=True, indent=4)}")
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
                 self.request_status()
         else:
-            self.logger.error(u'"{}" get local stats command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" get local stats command not currently available')
 
     #-------------------------------------------------------------------------------
     def get_preferences(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" get preferences'.format(self.name))
+                self.logger.info(f'"{self.name}" get preferences')
                 result_dict = self.robot.get_preferences().json()
-                self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+                self.logger.info(f"{json.dumps(result_dict, sort_keys=True, indent=4)}")
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
                 self.request_status()
         else:
-            self.logger.error(u'"{}" get preferences command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" get preferences command not currently available')
 
     #-------------------------------------------------------------------------------
     def get_map_boundaries(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" get map boundaries'.format(self.name))
+                self.logger.info(f'"{self.name}" get map boundaries')
                 result_dict = self.robot.get_map_boundaries().json()
-                self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+                self.logger.info(f"{json.dumps(result_dict, sort_keys=True, indent=4)}")
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
                 self.request_status()
         else:
-            self.logger.error(u'"{}" get map boundaries command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" get map boundaries command not currently available')
 
     #-------------------------------------------------------------------------------
     def get_robot_info(self):
         if self.states['connected']:
             try:
-                self.logger.info(u'"{}" get robot info'.format(self.name))
+                self.logger.info(f'"{self.name}" get robot info')
                 result_dict = self.robot.get_robot_info().json()
-                self.logger.info(u"{}".format(json.dumps(result_dict, sort_keys=True, indent=4)))
+                self.logger.info(f"{json.dumps(result_dict, sort_keys=True, indent=4)}")
             except RequestException:
-                self.logger.error(u'"{}" communication error'.format(self.name))
+                self.logger.error(f'"{self.name}" communication error')
                 self.request_status()
         else:
-            self.logger.error(u'"{}" get robot info command not currently available'.format(self.name))
+            self.logger.error(f'"{self.name}" get robot info command not currently available')
 
 
 ################################################################################
